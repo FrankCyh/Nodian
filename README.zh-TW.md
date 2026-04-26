@@ -6,6 +6,9 @@
 
 當你在一個檔案的欄位中加入 wikilink，外掛會自動在目標檔案的對應欄位寫入反向連結——刪除連結時也會自動移除。
 
+<img width="663" height="686" alt="CleanShot 2026-04-27 at 00 30 14" src="https://github.com/user-attachments/assets/fc2675f3-85f6-44db-8186-7d780bdfbcdb" />
+
+
 ## 範例
 
 ```
@@ -183,6 +186,9 @@ Mail: "[[new-contact]]"
 | 自動同步 | 開啟 | 編輯時自動同步反向連結 |
 | 使用 title 作為顯示名稱 | 關閉 | 在反向連結中使用 `title` 欄位作為顯示文字。變更後請執行全量同步。 |
 | 除錯模式 | 關閉 | 在開發者主控台輸出詳細日誌（`Cmd/Ctrl+Option+I`，篩選 `[YBR]`） |
+
+<img width="1007" height="1115" alt="CleanShot 2026-04-27 at 00 30 43" src="https://github.com/user-attachments/assets/979f514d-99eb-44be-8895-65b566552455" />
+
 
 ---
 

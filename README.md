@@ -6,6 +6,9 @@ An [Obsidian](https://obsidian.md) plugin that automatically syncs bidirectional
 
 When you add a wikilink to a field in one file, the plugin writes a backlink in the target file's corresponding field — and removes it when you delete the link.
 
+<img width="663" height="681" alt="CleanShot 2026-04-27 at 00 10 39" src="https://github.com/user-attachments/assets/d7b0725f-295f-4bc2-a718-3aa7654148d3" />
+
+
 ## Example
 
 ```
@@ -183,6 +186,10 @@ Add, edit, or remove field pairs. Each pair defines two field names and two tags
 | Auto sync | ON | Sync backlinks automatically when editing |
 | Use title as display name | OFF | Use the `title` field as display text in backlinks. Run Full Sync after changing. |
 | Debug mode | OFF | Log detailed info to the developer console (`Cmd/Ctrl+Option+I`, filter by `[YBR]`) |
+
+
+<img width="1004" height="1116" alt="CleanShot 2026-04-27 at 00 11 27" src="https://github.com/user-attachments/assets/bd7194be-2583-48ef-9d13-25e654dff8c9" />
+
 
 ---
 

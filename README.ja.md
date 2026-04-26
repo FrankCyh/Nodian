@@ -187,7 +187,7 @@ Mail: "[[new-contact]]"
 | title を表示名として使用 | オフ | バックリンクに `title` フィールドを表示テキストとして使用。変更後はフル同期を実行してください。 |
 | デバッグモード | オフ | 開発者コンソールに詳細ログを出力（`Cmd/Ctrl+Option+I`、`[YBR]` でフィルタ） |
 
-<img width="899" height="1111" alt="CleanShot 2026-04-27 at 00 34 06" src="https://github.com/user-attachments/assets/32b3bab5-7f21-4b86-abad-4145a318bb23" />
+<img width="1001" height="1109" alt="CleanShot 2026-04-27 at 00 35 15" src="https://github.com/user-attachments/assets/3d497f85-bcd6-442e-965f-6513b69d8ada" />
 
 
 ---

@@ -6,6 +6,9 @@ YAML frontmatter の双方向リレーションを自動同期する [Obsidian](
 
 あるファイルのフィールドに wikilink を追加すると、プラグインがターゲットファイルの対応フィールドにバックリンクを自動で書き込みます。リンクを削除すると、バックリンクも自動で削除されます。
 
+<img width="556" height="525" alt="CleanShot 2026-04-26 at 23 58 21" src="https://github.com/user-attachments/assets/11ad508d-7dd8-4a9b-8395-b17fd1f3ff21" />
+
+
 ## 例
 
 ```

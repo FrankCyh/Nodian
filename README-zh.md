@@ -1,3 +1,5 @@
+[English](README.md)
+
 # Nodian
 
 自動同步 YAML frontmatter 中雙向關聯的 [Obsidian](https://obsidian.md) 外掛（前身為 YAML Bidirectional Relation）。

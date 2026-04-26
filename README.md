@@ -188,7 +188,8 @@ Add, edit, or remove field pairs. Each pair defines two field names and two tags
 | Debug mode | OFF | Log detailed info to the developer console (`Cmd/Ctrl+Option+I`, filter by `[YBR]`) |
 
 
-<img width="1004" height="1116" alt="CleanShot 2026-04-27 at 00 11 27" src="https://github.com/user-attachments/assets/bd7194be-2583-48ef-9d13-25e654dff8c9" />
+<img width="1001" height="1117" alt="CleanShot 2026-04-27 at 00 33 03" src="https://github.com/user-attachments/assets/82d94f65-ce9f-4014-88f2-10b204fd80c5" />
+
 
 
 ---

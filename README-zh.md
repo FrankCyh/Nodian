@@ -1,4 +1,4 @@
-[English](README.md)
+[English](README.md) | 中文 | [日本語](README-ja.md)
 
 # Nodian
 

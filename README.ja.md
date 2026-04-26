@@ -8,6 +8,8 @@ YAML frontmatter の双方向リレーションを自動同期する [Obsidian](
 
 <img width="556" height="525" alt="CleanShot 2026-04-26 at 23 58 21" src="https://github.com/user-attachments/assets/11ad508d-7dd8-4a9b-8395-b17fd1f3ff21" />
 
+<img width="838" height="997" alt="CleanShot 2026-04-27 at 00 05 15" src="https://github.com/user-attachments/assets/8e9f6876-5042-4f67-b7cb-97f046e554ee" />
+
 
 ## 例
 

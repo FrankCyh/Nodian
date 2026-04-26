@@ -1,6 +1,6 @@
-# YAML Bidirectional Relation
+# Nodian
 
-An [Obsidian](https://obsidian.md) plugin that automatically syncs bidirectional relations in YAML frontmatter.
+An [Obsidian](https://obsidian.md) plugin that automatically syncs bidirectional relations in YAML frontmatter. (formerly YAML Bidirectional Relation)
 
 When you add a wikilink to a field in one file, the plugin writes a backlink in the target file's corresponding field — and removes it when you delete the link.
 
@@ -17,8 +17,8 @@ Mail: [[hello@example]]     →     Person: [[Alice]]        ← auto-generated
 
 - **Auto sync** — add or remove a link in one file, the other side updates instantly
 - **Relation pairs** — define which fields are paired (e.g. `Mail ↔ Person`, `Artist ↔ Songs`)
-- **Display names** — backlinks use `title` or `aliases` as display text automatically
-- **Tag-based disambiguation** — when the same field name appears in multiple pairs, tags help determine which pair to use
+- **Display names** — optionally use `title` field as display text in backlinks (opt-in via settings)
+- **Tag-based matching** — each pair requires tags; sync only fires when both field and tag match
 - **Auto-detect** — the plugin detects new relation fields and prompts you to set up pairs
 - **New file support** — creating a file from a wikilink auto-adds tags and backlinks
 - **Full sync command** — manually sync all relations via Command Palette
@@ -30,17 +30,17 @@ Mail: [[hello@example]]     →     Person: [[Alice]]        ← auto-generated
 ### With BRAT (recommended)
 
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from Community Plugins
-2. BRAT → Add Beta Plugin → `AkiSantin/YAML-Bidirectional-Relation`
+2. BRAT → Add Beta Plugin → `AkiSantin/Nodian`
 
 ### Manual
 
 Copy `main.js`, `manifest.json`, and `styles.css` to:
 
 ```
-<vault>/.obsidian/plugins/yaml-bidirectional-relation/
+<vault>/.obsidian/plugins/nodian/
 ```
 
-Restart Obsidian → Settings → Community Plugins → Enable YAML Bidirectional Relation.
+Restart Obsidian → Settings → Community Plugins → Enable Nodian.
 
 ---
 
@@ -130,20 +130,11 @@ Adding `Related: [[B]]` in A.md will add `Related: [[A]]` in B.md.
 
 ### Display names
 
-The plugin automatically uses display names in backlinks. It checks the source file's frontmatter in this order:
+By default, backlinks use the plain filename only: `[[my-artist-id]]`.
 
-1. `title` field (if present)
-2. First value in `aliases` array (if present)
-3. File name (fallback)
+To use the `title` field as display text, enable **Use title as display name** in Settings. When enabled, backlinks will appear as `[[my-artist-id|Some Artist Name]]` (using the value of the source file's `title` frontmatter field). Only the `title` field is used -- `aliases` are not checked.
 
-```yaml
-# Source file (my-artist-id.md):
-title: "Some Artist Name"
-```
-
-Backlinks pointing to this file will appear as `[[my-artist-id|Some Artist Name]]`.
-
-Display names are used when the plugin **writes new backlinks**. If you later change `title` or `aliases`, existing backlinks are **not** retroactively updated — this avoids overwriting any manual edits you may have made to link text. To refresh display names across the vault, run full sync from the Command Palette.
+Toggling this setting does not retroactively update existing backlinks. After changing it, run **Sync all bidirectional relations** from the Command Palette to update all backlinks across the vault.
 
 ### New file creation
 
@@ -181,7 +172,7 @@ This prevents wrong-target sync. For example, if both `Release` files and `Song`
 
 ## Settings
 
-Go to Settings → YAML Bidirectional Relation.
+Go to Settings → Nodian.
 
 ### Relation Pairs
 
@@ -190,7 +181,7 @@ Add, edit, or remove field pairs. Each pair defines two field names that are bid
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Auto sync | ON | Sync backlinks automatically when editing |
-| Auto update display name | ON | Use `title` or `aliases` as display text when writing new backlinks |
+| Use title as display name | OFF | Use the `title` field as display text in backlinks. Run Full Sync after changing. |
 | Debug mode | OFF | Log detailed info to the developer console |
 
 ---
@@ -234,7 +225,7 @@ A company/CRM vault:
 
 ### The popup keeps asking me to set up a pair I already defined
 
-1. Check Settings → YAML Bidirectional Relation → make sure the pair exists
+1. Check Settings → Nodian → make sure the pair exists
 2. Remove any duplicate pairs (e.g. both `Artist ↔ Release` and `Release ↔ Artist`)
 3. Restart Obsidian
 

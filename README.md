@@ -1,3 +1,5 @@
+[中文版](README-zh.md)
+
 # Nodian
 
 An [Obsidian](https://obsidian.md) plugin that automatically syncs bidirectional relations in YAML frontmatter. (formerly YAML Bidirectional Relation)

@@ -1,7 +1,7 @@
 {
   "id": "nodian",
   "name": "Nodian",
-  "version": "1.4.0",
+  "version": "1.4.4",
   "minAppVersion": "1.0.0",
   "description": "YAML bidirectional relation — automatically sync backlinks in frontmatter fields",
   "author": "Aki",

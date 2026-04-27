@@ -1,8 +1,5 @@
 node_modules/
 dist/
+build/
 *.log
 .DS_Store
-
-# Local development files
-.claude/
-*.local.*

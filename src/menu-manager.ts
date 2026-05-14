@@ -2,27 +2,35 @@
 // https://github.com/gfxholo/iconic
 // https://github.com/anareaty/pretty-properties
 
-import { Menu, MenuItem } from "obsidian";
+import { Menu, MenuItem, MenuPositionDef } from "obsidian";
+
+type ShowAtPosition = (this: Menu, position: MenuPositionDef, doc?: Document) => Menu;
 
 /**
- * Intercepts context menus via a Proxy on Menu.prototype.showAtPosition
+ * Intercepts context menus via Menu.prototype.showAtPosition
  * to add custom items to native Obsidian menus (e.g. property menu).
  */
 export default class MenuManager {
 	private menu: Menu | null = null;
 	private queuedActions: Array<() => void> = [];
+	private originalShowAtPosition: ShowAtPosition;
 
 	constructor() {
-		const manager = this;
-		Menu.prototype.showAtPosition = new Proxy(Menu.prototype.showAtPosition, {
-			apply(showAtPosition, menu, args) {
-				manager.menu = menu as Menu;
-				if (manager.queuedActions.length > 0) {
-					manager.runQueuedActions();
-				}
-				return showAtPosition.apply(menu, args as any);
-			},
-		});
+		this.originalShowAtPosition = Reflect.get(Menu.prototype, "showAtPosition") as ShowAtPosition;
+		const getManager = () => this;
+
+		Menu.prototype.showAtPosition = function (
+			this: Menu,
+			position: MenuPositionDef,
+			doc?: Document
+		): Menu {
+			const manager = getManager();
+			manager.menu = this;
+			if (manager.queuedActions.length > 0) {
+				manager.runQueuedActions();
+			}
+			return manager.originalShowAtPosition.call(this, position, doc);
+		};
 	}
 
 	private runQueuedActions(): void {
@@ -48,5 +56,10 @@ export default class MenuManager {
 		this.menu?.close();
 		this.menu = null;
 		this.flush();
+	}
+
+	restore(): void {
+		Menu.prototype.showAtPosition = this.originalShowAtPosition;
+		this.closeAndFlush();
 	}
 }

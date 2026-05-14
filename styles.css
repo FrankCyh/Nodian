@@ -49,16 +49,29 @@
 	background: var(--background-modifier-hover);
 }
 
-/* ─── Modal ─── */
+	/* ─── Modal ─── */
 
 .ybr-modal,
 .ybr-modal .modal-content,
 .modal:has(.ybr-modal),
 .modal:has(.ybr-modal) .modal-content {
 	overflow: visible !important;
-}
+	}
 
-/* Pair row */
+	.ybr-modal-section-label {
+		font-weight: 600;
+		font-size: 0.9em;
+		margin-bottom: 8px;
+		color: var(--text-muted);
+	}
+
+	.ybr-modal-warning {
+		color: var(--color-red);
+		font-size: 0.85em;
+		margin: 8px 0;
+	}
+
+	/* Pair row */
 .ybr-pair-row {
 	display: flex;
 	align-items: center;
@@ -240,8 +253,8 @@
 	outline: none;
 }
 
-.ybr-combo-dropdown {
-	display: none;
+	.ybr-combo-dropdown {
+		display: none;
 	position: absolute;
 	top: 100%;
 	left: 0;
@@ -252,14 +265,22 @@
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
 	margin-top: 2px;
-	z-index: 100;
-}
+		z-index: 100;
+	}
 
-.ybr-combo-option {
-	padding: 6px 10px;
-	cursor: pointer;
-	font-size: 0.85em;
-}
+	.ybr-combo-dropdown.is-open {
+		display: block;
+	}
+
+	.ybr-combo-option {
+		padding: 6px 10px;
+		cursor: pointer;
+		font-size: 0.85em;
+	}
+
+	.ybr-combo-option.is-hidden {
+		display: none;
+	}
 
 .ybr-combo-option:hover {
 	background: var(--background-modifier-hover);
@@ -297,14 +318,18 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.ybr-settings-input {
-	padding: 4px 8px;
+	.ybr-settings-input {
+		padding: 4px 8px;
 	border-radius: 4px;
 	border: 1px solid var(--background-modifier-border);
 	background: var(--background-primary);
 	color: var(--text-normal);
-	font-size: 0.85em;
-}
+		font-size: 0.85em;
+	}
+
+	.ybr-settings-input.is-invalid {
+		border-color: var(--text-error);
+	}
 
 .ybr-settings-tag {
 	width: 80px;

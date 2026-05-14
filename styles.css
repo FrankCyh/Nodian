@@ -3,44 +3,44 @@
 /* ─── Property buttons ─── */
 
 .metadata-property {
-	position: relative !important;
-	overflow: visible !important;
+	position: relative;
+	overflow: visible;
 }
 
 /* Position button at the end of the key column (between key and value).
    Uses Obsidian's --metadata-property-key-width variable if available,
    with fallback to the default ~8em key width. */
 .ybr-relation-btn {
-	position: absolute !important;
-	left: calc(var(--metadata-property-key-width, 8em) - 20px) !important;
-	top: 50% !important;
-	transform: translateY(-50%) !important;
-	display: flex !important;
-	align-items: center !important;
-	justify-content: center !important;
-	width: 18px !important;
-	height: 18px !important;
-	padding: 0 !important;
-	margin: 0 !important;
-	border: none !important;
-	border-radius: 4px !important;
-	background: var(--background-primary) !important;
-	color: var(--text-faint) !important;
-	cursor: pointer !important;
-	opacity: 0.2 !important;
-	z-index: 10 !important;
+	position: absolute;
+	left: calc(var(--metadata-property-key-width, 8em) - 20px);
+	top: 50%;
+	transform: translateY(-50%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-faint);
+	cursor: pointer;
+	opacity: 0.2;
+	z-index: 10;
 	transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 
 .ybr-relation-btn:hover {
-	opacity: 1 !important;
+	opacity: 1;
 	color: var(--text-normal);
 	background: var(--background-modifier-hover);
 }
 
 .ybr-relation-btn.is-paired {
-	opacity: 1 !important;
-	color: var(--interactive-accent) !important;
+	opacity: 1;
+	color: var(--interactive-accent);
 }
 
 .ybr-relation-btn.is-paired:hover {
@@ -49,29 +49,29 @@
 	background: var(--background-modifier-hover);
 }
 
-	/* ─── Modal ─── */
+/* ─── Modal ─── */
 
 .ybr-modal,
+.ybr-modal-container,
 .ybr-modal .modal-content,
-.modal:has(.ybr-modal),
-.modal:has(.ybr-modal) .modal-content {
-	overflow: visible !important;
-	}
+.ybr-modal-container .modal-content {
+	overflow: visible;
+}
 
-	.ybr-modal-section-label {
-		font-weight: 600;
-		font-size: 0.9em;
-		margin-bottom: 8px;
-		color: var(--text-muted);
-	}
+.ybr-modal-section-label {
+	font-weight: 600;
+	font-size: 0.9em;
+	margin-bottom: 8px;
+	color: var(--text-muted);
+}
 
-	.ybr-modal-warning {
-		color: var(--color-red);
-		font-size: 0.85em;
-		margin: 8px 0;
-	}
+.ybr-modal-warning {
+	color: var(--color-red);
+	font-size: 0.85em;
+	margin: 8px 0;
+}
 
-	/* Pair row */
+/* Pair row */
 .ybr-pair-row {
 	display: flex;
 	align-items: center;

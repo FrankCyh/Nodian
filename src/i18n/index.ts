@@ -1,3 +1,4 @@
+import { getLanguage } from "obsidian";
 import en from "./en";
 import zhTW from "./zh-TW";
 import ja from "./ja";
@@ -9,7 +10,10 @@ const locales: Record<string, Record<string, string>> = {
 };
 
 function getLocale(): string {
-	return localStorage.getItem("language") || "en";
+	const language = getLanguage().toLowerCase();
+	if (language === "zh-tw") return "zh-TW";
+	if (language.startsWith("ja")) return "ja";
+	return "en";
 }
 
 /**

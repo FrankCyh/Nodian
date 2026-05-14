@@ -109,7 +109,7 @@ async function updateDisplayNamesInVault(
 				);
 			});
 		} finally {
-			setTimeout(() => syncing.delete(filePath), 500);
+			window.setTimeout(() => syncing.delete(filePath), 500);
 		}
 
 		if (debug) {

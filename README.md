@@ -33,6 +33,14 @@ Mail: [[hello@example]]     →     Person: [[Alice]]        ← auto-generated
 - **Localized** — English, Japanese, Traditional Chinese
 - **Mobile support** — works on both desktop and mobile
 
+## Works well with Obsidian Bases
+
+Nodian can connect different Bases through typed YAML relations.
+
+For example, you can have one Base filtered by `#Person` and another Base filtered by `#Mail`. When a `Person` note links to a `Mail` note through the `Mail` field, Nodian automatically writes the reverse `Person` field in the Mail note.
+
+Because every relation pair requires tags on both sides, the same field name can safely be used in different Bases without triggering the wrong relation.
+
 ---
 
 ## Install

@@ -86,6 +86,7 @@ export class PairSuggestModal extends Modal {
 
 	onOpen() {
 		const { contentEl } = this;
+		this.modalEl.addClass("ybr-modal-container");
 		contentEl.addClass("ybr-modal");
 		new Setting(contentEl).setName(t("modal.editTitle")).setHeading();
 
@@ -300,6 +301,7 @@ export class PairSuggestModal extends Modal {
 	}
 
 	onClose() {
+		this.modalEl.removeClass("ybr-modal-container");
 		for (const fn of this.cleanupFns) fn();
 		this.cleanupFns = [];
 		this.contentEl.empty();

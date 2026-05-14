@@ -16,7 +16,7 @@ export default class MenuManager {
 	private originalShowAtPosition: ShowAtPosition;
 
 	constructor() {
-		this.originalShowAtPosition = Reflect.get(Menu.prototype, "showAtPosition") as ShowAtPosition;
+		this.originalShowAtPosition = Menu.prototype.showAtPosition;
 		const getManager = () => this;
 
 		Menu.prototype.showAtPosition = function (
@@ -29,7 +29,8 @@ export default class MenuManager {
 			if (manager.queuedActions.length > 0) {
 				manager.runQueuedActions();
 			}
-			return manager.originalShowAtPosition.call(this, position, doc);
+			const originalShowAtPosition = manager.originalShowAtPosition.bind(this);
+			return originalShowAtPosition(position, doc);
 		};
 	}
 

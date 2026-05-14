@@ -35,7 +35,7 @@ export function splitFrontmatter(content: string): FrontmatterSplit | null {
  */
 function formatFieldValue(values: string[]): string {
 	if (values.length === 0) return "[]";
-	return "\n" + values.map((v) => `  - "${v}"`).join("\n");
+	return "\n" + values.map((v) => `  - ${JSON.stringify(v)}`).join("\n");
 }
 
 /**

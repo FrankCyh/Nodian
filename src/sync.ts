@@ -2,21 +2,17 @@ import { MetadataCache, Notice, TFile, Vault } from "obsidian";
 import { t } from "./i18n";
 import { RelationChange, RelationPair } from "./types";
 import { RelationCache } from "./cache";
-import { resolveDisplayName } from "./display-name";
 import {
 	buildWikilink,
 	extractTargets,
 	hasLinkTo,
 } from "./wikilink-utils";
 import { readFieldWikilinks, splitFrontmatter, updateFieldInContent } from "./yaml-utils";
+import { getFrontmatterTags, getFrontmatterValue } from "./frontmatter-utils";
 
 function extractFileTags(metadataCache: MetadataCache, file: TFile): string[] {
 	const fm = metadataCache.getFileCache(file)?.frontmatter;
-	if (!fm) return [];
-	const raw = fm.tags;
-	if (typeof raw === "string") return [raw];
-	if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
-	return [];
+	return getFrontmatterTags(fm);
 }
 
 function resolveTargetFile(
@@ -51,22 +47,16 @@ export function detectChanges(
 	const watchedFields = RelationCache.getWatchedFields(pairs);
 
 	// Extract source tags for pair disambiguation
-	const sourceTags: string[] = (() => {
-		if (!currentFrontmatter) return [];
-		const raw = currentFrontmatter.tags;
-		if (typeof raw === "string") return [raw];
-		if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
-		return [];
-	})();
+	const sourceTags = getFrontmatterTags(currentFrontmatter);
 
 	for (const fieldName of watchedFields) {
 		const counterpart = RelationCache.getCounterpartField(fieldName, pairs, sourceTags);
 		if (!counterpart) continue;
 
-		const oldTargets = cache.getTargets(filePath, fieldName);
-		const newTargets = currentFrontmatter
-			? extractTargets(currentFrontmatter[fieldName])
-			: [];
+			const oldTargets = cache.getTargets(filePath, fieldName);
+			const newTargets = currentFrontmatter
+				? extractTargets(getFrontmatterValue(currentFrontmatter, fieldName))
+				: [];
 
 		const oldSet = new Set(oldTargets);
 		const newSet = new Set(newTargets);
@@ -280,11 +270,11 @@ export async function applyChanges(
 				}
 				console.log(`[YBR] Cache updated for ${filePath}:`, Object.fromEntries(finalFieldStates));
 			}
-		} finally {
-			setTimeout(() => syncing.delete(filePath), 500);
+			} finally {
+				window.setTimeout(() => syncing.delete(filePath), 500);
+			}
 		}
 	}
-}
 
 /**
  * Full sync: rebuild cache and ensure all backlinks are consistent.
@@ -314,18 +304,13 @@ export async function fullSync(
 		const fm = metadataCache.getFileCache(file)?.frontmatter;
 		if (!fm) continue;
 
-		const fmTags: string[] = (() => {
-			const raw = fm.tags;
-			if (typeof raw === "string") return [raw];
-			if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
-			return [];
-		})();
+			const fmTags = getFrontmatterTags(fm);
 
 		for (const fieldName of watchedFields) {
 			const counterpart = RelationCache.getCounterpartField(fieldName, pairs, fmTags);
 			if (!counterpart) continue;
 
-			const targets = extractTargets(fm[fieldName]);
+				const targets = extractTargets(getFrontmatterValue(fm, fieldName));
 			const sourceDisplayName = useDisplayName ? cache.getDisplayName(file.basename) : null;
 
 			const expectedTargetTag = counterpart.pair.fieldA === fieldName
@@ -333,11 +318,11 @@ export async function fullSync(
 				: counterpart.pair.tagA;
 
 			for (const targetFileName of targets) {
-				const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, file.path, expectedTargetTag);
-				if (!targetFile) continue;
+					const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, file.path, expectedTargetTag);
+					if (!targetFile) continue;
 
-				const targetFm = metadataCache.getFileCache(targetFile)?.frontmatter;
-				const existingTargets = extractTargets(targetFm?.[counterpart.counterpartField]);
+					const targetFm = metadataCache.getFileCache(targetFile)?.frontmatter;
+					const existingTargets = extractTargets(getFrontmatterValue(targetFm, counterpart.counterpartField));
 
 				if (!existingTargets.includes(file.basename)) {
 					const newLink = buildWikilink(file.basename, sourceDisplayName);
@@ -457,10 +442,10 @@ export async function fullSync(
 				return result;
 			});
 			modifiedCount++;
-		} finally {
-			setTimeout(() => syncing.delete(filePath), 500);
+			} finally {
+				window.setTimeout(() => syncing.delete(filePath), 500);
+			}
 		}
-	}
 
 	// Rebuild cache after all modifications
 	cache.buildFullCache(vault, metadataCache, watchedFields);

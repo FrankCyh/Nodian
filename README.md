@@ -1,4 +1,4 @@
-[English](README.md) | [中文]([README.zh-TW.md](https://github.com/AkiSantin/Nodian/blob/main/README.zh-TW.md)) | [日本語]([README.ja.md](https://github.com/AkiSantin/Nodian/blob/main/README.ja.md))
+[English](README.md) | [中文](https://github.com/AkiSantin/Nodian/blob/main/README.zh-TW.md) | [日本語](https://github.com/AkiSantin/Nodian/blob/main/README.ja.md)
 
 # Nodian
 

@@ -1,34 +1,46 @@
-import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import { App, ButtonComponent, Notice, PluginSettingTab, Setting } from "obsidian";
 import type YBRPlugin from "./main";
 import { fullSync } from "./sync";
 import { t } from "./i18n";
+import { getFrontmatterKeys, getFrontmatterTags } from "./frontmatter-utils";
+
+const SYSTEM_FIELDS = new Set([
+	"title",
+	"aliases",
+	"tags",
+	"cssclasses",
+	"publish",
+	"permalink",
+	"description",
+	"image",
+	"cover",
+	"banner",
+	"date",
+	"created",
+	"updated",
+	"modified",
+	"position",
+]);
 
 function collectExistingTags(app: App): string[] {
 	const tagSet = new Set<string>();
 	const files = app.vault.getMarkdownFiles();
 	for (const file of files) {
 		const fm = app.metadataCache.getFileCache(file)?.frontmatter;
-		if (!fm) continue;
-		const raw = fm.tags;
-		if (typeof raw === "string") tagSet.add(raw);
-		else if (Array.isArray(raw)) {
-			for (const tag of raw) {
-				if (typeof tag === "string") tagSet.add(tag);
-			}
+		for (const tag of getFrontmatterTags(fm)) {
+			tagSet.add(tag);
 		}
 	}
 	return Array.from(tagSet).sort();
 }
 
 function collectExistingFields(app: App): string[] {
-	const SYSTEM = new Set(["title","aliases","tags","cssclasses","publish","permalink","description","image","cover","banner","date","created","updated","modified","position"]);
 	const fieldSet = new Set<string>();
 	const files = app.vault.getMarkdownFiles();
 	for (const file of files) {
 		const fm = app.metadataCache.getFileCache(file)?.frontmatter;
-		if (!fm) continue;
-		for (const key of Object.keys(fm)) {
-			if (!SYSTEM.has(key) && key !== "position") fieldSet.add(key);
+		for (const key of getFrontmatterKeys(fm)) {
+			if (!SYSTEM_FIELDS.has(key.toLowerCase())) fieldSet.add(key);
 		}
 	}
 	return Array.from(fieldSet).sort();
@@ -46,39 +58,24 @@ export class YBRSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// --- Full Sync Button ---
 		new Setting(containerEl)
 			.setName(t("settings.fullSync"))
 			.setDesc(t("settings.fullSync.desc"))
 			.addButton((btn) =>
 				btn
 					.setButtonText(t("settings.fullSync.button"))
-					.onClick(async () => {
-						btn.setDisabled(true);
-						btn.setButtonText("...");
-						const count = await fullSync(
-							this.app.vault,
-							this.app.metadataCache,
-							this.plugin.cache,
-							this.plugin.getActivePairs(),
-							this.plugin.syncing,
-							this.plugin.settings.debug,
-							this.plugin.settings.useDisplayName
-						);
-						new Notice(t("notice.syncComplete", String(count)));
-						btn.setDisabled(false);
-						btn.setButtonText(t("settings.fullSync.button"));
+					.onClick(() => {
+						void this.runFullSync(btn);
 					})
 			);
 
-		// --- Toggles ---
 		new Setting(containerEl)
 			.setName(t("settings.autoSync"))
 			.setDesc(t("settings.autoSync.desc"))
 			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.autoSync).onChange(async (value) => {
+				toggle.setValue(this.plugin.settings.autoSync).onChange((value) => {
 					this.plugin.settings.autoSync = value;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
@@ -86,9 +83,9 @@ export class YBRSettingTab extends PluginSettingTab {
 			.setName(t("settings.useDisplayName"))
 			.setDesc(t("settings.useDisplayName.desc"))
 			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.useDisplayName).onChange(async (value) => {
+				toggle.setValue(this.plugin.settings.useDisplayName).onChange((value) => {
 					this.plugin.settings.useDisplayName = value;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
@@ -96,39 +93,29 @@ export class YBRSettingTab extends PluginSettingTab {
 			.setName(t("settings.debug"))
 			.setDesc(t("settings.debug.desc"))
 			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.debug).onChange(async (value) => {
+				toggle.setValue(this.plugin.settings.debug).onChange((value) => {
 					this.plugin.settings.debug = value;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
-		// --- Relation Pairs ---
-		containerEl.createEl("h3", { text: t("settings.relationPairs") });
+		new Setting(containerEl).setName(t("settings.relationPairs")).setHeading();
 
-		// Datalists for autocomplete
 		const tags = collectExistingTags(this.app);
 		const fields = collectExistingFields(this.app);
-
 		const tagListId = "ybr-datalist-tags";
 		const fieldListId = "ybr-datalist-fields";
 
-		let tagList = containerEl.querySelector(`#${tagListId}`) as HTMLDataListElement;
-		if (!tagList) {
-			tagList = containerEl.createEl("datalist", { attr: { id: tagListId } });
-			for (const tag of tags) {
-				tagList.createEl("option", { attr: { value: tag } });
-			}
+		const tagList = containerEl.createEl("datalist", { attr: { id: tagListId } });
+		for (const tag of tags) {
+			tagList.createEl("option", { attr: { value: tag } });
 		}
 
-		let fieldList = containerEl.querySelector(`#${fieldListId}`) as HTMLDataListElement;
-		if (!fieldList) {
-			fieldList = containerEl.createEl("datalist", { attr: { id: fieldListId } });
-			for (const field of fields) {
-				fieldList.createEl("option", { attr: { value: field } });
-			}
+		const fieldList = containerEl.createEl("datalist", { attr: { id: fieldListId } });
+		for (const field of fields) {
+			fieldList.createEl("option", { attr: { value: field } });
 		}
 
-		// Column headers
 		const headerRow = containerEl.createDiv({ cls: "ybr-settings-pair-row ybr-settings-header" });
 		headerRow.createEl("span", { cls: "ybr-settings-header-tag", text: "Tag" });
 		headerRow.createEl("span", { cls: "ybr-settings-header-field", text: "Field" });
@@ -138,7 +125,6 @@ export class YBRSettingTab extends PluginSettingTab {
 		headerRow.createEl("span", { cls: "ybr-settings-header-delete", text: "" });
 
 		const pairsContainer = containerEl.createDiv();
-
 		const renderPairs = () => {
 			pairsContainer.empty();
 
@@ -149,22 +135,20 @@ export class YBRSettingTab extends PluginSettingTab {
 					cls: "ybr-settings-input ybr-settings-tag",
 					attr: { type: "text", placeholder: "Tag", value: pair.tagA || "", list: tagListId },
 				});
-				if (!pair.tagA) tagAInput.style.borderColor = "var(--text-error)";
-				tagAInput.addEventListener("change", async () => {
+				tagAInput.classList.toggle("is-invalid", !pair.tagA);
+				tagAInput.addEventListener("change", () => {
 					this.plugin.settings.pairs[index].tagA = tagAInput.value.trim();
-					tagAInput.style.borderColor = tagAInput.value.trim() ? "" : "var(--text-error)";
-					await this.plugin.saveSettings();
-					this.plugin.rebuildCache();
+					tagAInput.classList.toggle("is-invalid", !tagAInput.value.trim());
+					void this.saveSettingsAndRebuild();
 				});
 
 				const fieldAInput = row.createEl("input", {
 					cls: "ybr-settings-input ybr-settings-field",
 					attr: { type: "text", placeholder: "Field", value: pair.fieldA || "", list: fieldListId },
 				});
-				fieldAInput.addEventListener("change", async () => {
+				fieldAInput.addEventListener("change", () => {
 					this.plugin.settings.pairs[index].fieldA = fieldAInput.value.trim();
-					await this.plugin.saveSettings();
-					this.plugin.rebuildCache();
+					void this.saveSettingsAndRebuild();
 				});
 
 				row.createEl("span", { cls: "ybr-settings-arrow", text: "↔" });
@@ -173,43 +157,69 @@ export class YBRSettingTab extends PluginSettingTab {
 					cls: "ybr-settings-input ybr-settings-field",
 					attr: { type: "text", placeholder: "Field", value: pair.fieldB || "", list: fieldListId },
 				});
-				fieldBInput.addEventListener("change", async () => {
+				fieldBInput.addEventListener("change", () => {
 					this.plugin.settings.pairs[index].fieldB = fieldBInput.value.trim();
-					await this.plugin.saveSettings();
-					this.plugin.rebuildCache();
+					void this.saveSettingsAndRebuild();
 				});
 
 				const tagBInput = row.createEl("input", {
 					cls: "ybr-settings-input ybr-settings-tag",
 					attr: { type: "text", placeholder: "Tag", value: pair.tagB || "", list: tagListId },
 				});
-				if (!pair.tagB) tagBInput.style.borderColor = "var(--text-error)";
-				tagBInput.addEventListener("change", async () => {
+				tagBInput.classList.toggle("is-invalid", !pair.tagB);
+				tagBInput.addEventListener("change", () => {
 					this.plugin.settings.pairs[index].tagB = tagBInput.value.trim();
-					tagBInput.style.borderColor = tagBInput.value.trim() ? "" : "var(--text-error)";
-					await this.plugin.saveSettings();
-					this.plugin.rebuildCache();
+					tagBInput.classList.toggle("is-invalid", !tagBInput.value.trim());
+					void this.saveSettingsAndRebuild();
 				});
 
 				const deleteBtn = row.createEl("button", { cls: "ybr-settings-delete", text: "×" });
 				deleteBtn.setAttribute("aria-label", t("settings.deletePair"));
-				deleteBtn.addEventListener("click", async () => {
+				deleteBtn.addEventListener("click", () => {
 					this.plugin.settings.pairs.splice(index, 1);
-					await this.plugin.saveSettings();
-					this.plugin.rebuildCache();
-					renderPairs();
+					void this.saveSettingsAndRebuild(renderPairs);
 				});
 			});
 
 			const addRow = pairsContainer.createDiv({ cls: "ybr-settings-add-row" });
 			const addBtn = addRow.createEl("button", { cls: "mod-cta", text: t("settings.addPair") });
-			addBtn.addEventListener("click", async () => {
+			addBtn.addEventListener("click", () => {
 				this.plugin.settings.pairs.push({ fieldA: "", fieldB: "", tagA: "", tagB: "" });
-				await this.plugin.saveSettings();
-				renderPairs();
+				void this.saveSettings(renderPairs);
 			});
 		};
 
 		renderPairs();
+	}
+
+	private async runFullSync(btn: ButtonComponent): Promise<void> {
+		btn.setDisabled(true);
+		btn.setButtonText("...");
+		try {
+			const count = await fullSync(
+				this.app.vault,
+				this.app.metadataCache,
+				this.plugin.cache,
+				this.plugin.getActivePairs(),
+				this.plugin.syncing,
+				this.plugin.settings.debug,
+				this.plugin.settings.useDisplayName
+			);
+			new Notice(t("notice.syncComplete", String(count)));
+		} finally {
+			btn.setDisabled(false);
+			btn.setButtonText(t("settings.fullSync.button"));
+		}
+	}
+
+	private async saveSettingsAndRebuild(afterSave?: () => void): Promise<void> {
+		await this.plugin.saveSettings();
+		this.plugin.rebuildCache();
+		afterSave?.();
+	}
+
+	private async saveSettings(afterSave?: () => void): Promise<void> {
+		await this.plugin.saveSettings();
+		afterSave?.();
 	}
 }

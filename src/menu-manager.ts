@@ -16,7 +16,11 @@ export default class MenuManager {
 	private originalShowAtPosition: ShowAtPosition;
 
 	constructor() {
-		this.originalShowAtPosition = Menu.prototype.showAtPosition;
+		const originalShowAtPosition = Reflect.get(Menu.prototype, "showAtPosition") as unknown;
+		if (typeof originalShowAtPosition !== "function") {
+			throw new Error("Menu.showAtPosition is unavailable");
+		}
+		this.originalShowAtPosition = originalShowAtPosition as ShowAtPosition;
 		const getManager = () => this;
 
 		Menu.prototype.showAtPosition = function (
@@ -29,8 +33,7 @@ export default class MenuManager {
 			if (manager.queuedActions.length > 0) {
 				manager.runQueuedActions();
 			}
-			const originalShowAtPosition = manager.originalShowAtPosition.bind(this);
-			return originalShowAtPosition(position, doc);
+			return manager.originalShowAtPosition.call(this, position, doc) as Menu;
 		};
 	}
 

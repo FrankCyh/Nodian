@@ -1,6 +1,6 @@
 {
   "name": "nodian",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "YAML bidirectional relation — automatically sync backlinks in frontmatter fields.",
   "main": "main.js",
   "scripts": {

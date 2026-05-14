@@ -6,7 +6,7 @@ An [Obsidian](https://obsidian.md) plugin that automatically syncs bidirectional
 
 When you add a wikilink to a field in one file, the plugin writes a backlink in the target file's corresponding field — and removes it when you delete the link.
 
-<img width="663" height="681" alt="CleanShot 2026-04-27 at 00 10 39" src="https://github.com/user-attachments/assets/d7b0725f-295f-4bc2-a718-3aa7654148d3" />
+<img width="1336" height="940" alt="2026-04-27 01 52 13" src="https://github.com/user-attachments/assets/92f5e2b4-2633-4374-b64f-5725a8c032e9" />
 
 
 ## Example
@@ -17,6 +17,10 @@ Person.md                          Mail.md
 tags: [Person]                     tags: [Mail]
 Mail: [[hello@example]]     →     Person: [[Alice]]        ← auto-generated
 ```
+
+
+<img width="663" height="681" alt="CleanShot 2026-04-27 at 00 10 39" src="https://github.com/user-attachments/assets/d7b0725f-295f-4bc2-a718-3aa7654148d3" />
+
 
 ## Features
 

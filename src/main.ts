@@ -1,4 +1,4 @@
-import { MarkdownView, Menu, Notice, Plugin, TFile } from "obsidian";
+import { Notice, Plugin, TFile } from "obsidian";
 import { DEFAULT_SETTINGS, PluginSettings, RelationPair, isCompletePair } from "./types";
 import { RelationCache } from "./cache";
 import { YBRSettingTab } from "./settings";
@@ -9,18 +9,44 @@ import { readFieldWikilinks, splitFrontmatter, updateFieldInContent } from "./ya
 import { showPairSuggestModal } from "./pair-suggest-modal";
 import { t } from "./i18n";
 import MenuManager from "./menu-manager";
+import { getFrontmatterKeys, getFrontmatterTags, getFrontmatterValue, isRecord } from "./frontmatter-utils";
 
 function extractYaml(content: string): string {
 	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	return match ? match[1] : "";
 }
 
+function readStringSetting(record: Record<string, unknown>, key: string, fallback = ""): string {
+	const value = record[key];
+	return typeof value === "string" ? value : fallback;
+}
+
+function readBooleanSetting(record: Record<string, unknown>, key: string, fallback: boolean): boolean {
+	const value = record[key];
+	return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeRelationPair(value: unknown): { pair: RelationPair; migrated: boolean } | null {
+	if (!isRecord(value)) return null;
+
+	const fieldA = readStringSetting(value, "fieldA");
+	const fieldB = readStringSetting(value, "fieldB");
+	const tagAValue = value.tagA;
+	const tagBValue = value.tagB;
+	const tagA = typeof tagAValue === "string" ? tagAValue : fieldB;
+	const tagB = typeof tagBValue === "string" ? tagBValue : fieldA;
+
+	return {
+		pair: { fieldA, fieldB, tagA, tagB },
+		migrated: typeof tagAValue !== "string" || typeof tagBValue !== "string",
+	};
+}
+
 export default class YBRPlugin extends Plugin {
 	settings: PluginSettings = DEFAULT_SETTINGS;
 	cache: RelationCache = new RelationCache();
 	syncing: Set<string> = new Set();
-	private debounceTimers: Map<string, ReturnType<typeof setTimeout>> =
-		new Map();
+	private debounceTimers: Map<string, number> = new Map();
 	private layoutReady = false;
 	private menuManager!: MenuManager;
 
@@ -61,7 +87,7 @@ export default class YBRPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => {
 			this.rebuildCache();
 			// Mark ready AFTER a short delay so initial file events are ignored
-			setTimeout(() => {
+			window.setTimeout(() => {
 				this.layoutReady = true;
 				if (this.settings.debug) {
 					console.log("[YBR] Layout ready, accepting file events");
@@ -71,14 +97,14 @@ export default class YBRPlugin extends Plugin {
 
 		// Hook into Obsidian's property icon click — queues our menu items
 		// that will be added to the native property menu when it shows.
-		this.registerDomEvent(document, "click", (evt) => {
+		this.registerDomEvent(activeDocument, "click", (evt) => {
 			const target = evt.target as HTMLElement;
 			if (!target) return;
 			if (target.closest(".metadata-property-icon")) {
 				this.queuePropertyMenuItems(target);
 			}
 		}, true);
-		this.registerDomEvent(document, "contextmenu", (evt) => {
+		this.registerDomEvent(activeDocument, "contextmenu", (evt) => {
 			const target = evt.target as HTMLElement;
 			if (!target) return;
 			if (target.closest(".metadata-property-icon") || target.closest(".metadata-property")) {
@@ -143,35 +169,32 @@ export default class YBRPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.menuManager.restore();
 		// Clear all debounce timers
 		for (const timer of this.debounceTimers.values()) {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 		}
 		this.debounceTimers.clear();
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			await this.loadData()
-		);
-		// Migrate old pairs without tagA/tagB
-		let migrated = false;
-		for (const pair of this.settings.pairs) {
-			if ((pair as any).tagA === undefined) {
-				(pair as any).tagA = pair.fieldB;
-				migrated = true;
-			}
-			if ((pair as any).tagB === undefined) {
-				(pair as any).tagB = pair.fieldA;
-				migrated = true;
-			}
-		}
-		if ((this.settings as any).autoUpdateDisplayName !== undefined) {
-			delete (this.settings as any).autoUpdateDisplayName;
-			migrated = true;
-		}
+		const rawData = (await this.loadData()) as unknown;
+		const data = isRecord(rawData) ? rawData : {};
+		const rawPairs = Array.isArray(data.pairs) ? data.pairs : [];
+		const normalizedPairs = rawPairs
+			.map(normalizeRelationPair)
+			.filter((item): item is { pair: RelationPair; migrated: boolean } => item !== null);
+		const migrated =
+			normalizedPairs.some((item) => item.migrated) ||
+			"autoUpdateDisplayName" in data;
+
+		this.settings = {
+			pairs: normalizedPairs.map((item) => item.pair),
+			autoSync: readBooleanSetting(data, "autoSync", DEFAULT_SETTINGS.autoSync),
+			useDisplayName: readBooleanSetting(data, "useDisplayName", DEFAULT_SETTINGS.useDisplayName),
+			debug: readBooleanSetting(data, "debug", DEFAULT_SETTINGS.debug),
+		};
+
 		if (migrated) {
 			await this.saveData(this.settings);
 		}
@@ -209,11 +232,11 @@ export default class YBRPlugin extends Plugin {
 
 	/**
 	 * Queue a menu item to be added to Obsidian's native property menu.
-	 * The MenuManager's Proxy on Menu.showAtPosition will add it when
+	 * The MenuManager's Menu.showAtPosition hook will add it when
 	 * the native menu is about to open.
 	 */
 	private queuePropertyMenuItems(target: HTMLElement) {
-		const propEl = target.closest(".metadata-property") as HTMLElement | null;
+		const propEl = target.closest(".metadata-property");
 		if (!propEl) return;
 
 		const fieldName = propEl.getAttribute("data-property-key");
@@ -241,21 +264,9 @@ export default class YBRPlugin extends Plugin {
 				.setTitle(isInAnyPair ? t("menu.editPair") : t("menu.configurePair"))
 				.setIcon("link")
 				.onClick(() => {
-					this.onPropertyButtonClick(caseCorrectFieldName);
+					void this.onPropertyButtonClick(caseCorrectFieldName);
 				})
 		);
-	}
-
-	/**
-	 * Get the counterpart field name for display purposes.
-	 */
-	private getPairCounterparts(fieldName: string): string[] {
-		const counterparts: string[] = [];
-		for (const pair of this.settings.pairs) {
-			if (pair.fieldA === fieldName) counterparts.push(pair.fieldB);
-			else if (pair.fieldB === fieldName) counterparts.push(pair.fieldA);
-		}
-		return counterparts;
 	}
 
 	/**
@@ -267,18 +278,12 @@ export default class YBRPlugin extends Plugin {
 
 		// Get current file's tags for highlighting active pair
 		const currentFm = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
-		const currentTags: string[] = (() => {
-			if (!currentFm) return [];
-			const raw = currentFm.tags;
-			if (typeof raw === "string") return [raw];
-			if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
-			return [];
-		})();
+		const currentTags = getFrontmatterTags(currentFm);
 
 		// Get current page's field names to filter relevant pairs
-		const pageFields = currentFm ? Object.keys(currentFm).filter(
-			(k) => !YBRPlugin.SYSTEM_FIELDS.has(k) && k !== "position"
-		) : [];
+		const pageFields = getFrontmatterKeys(currentFm).filter(
+			(k) => !YBRPlugin.SYSTEM_FIELDS.has(k.toLowerCase()) && k !== "position"
+		);
 
 		const activePairs = this.getActivePairs();
 		const result = await showPairSuggestModal(
@@ -313,7 +318,7 @@ export default class YBRPlugin extends Plugin {
 						return content;
 					});
 				} finally {
-					setTimeout(() => this.syncing.delete(activeFile.path), 500);
+					window.setTimeout(() => this.syncing.delete(activeFile.path), 500);
 				}
 				// Update currentTags for pair creation below
 				currentTags.push(result.sourceTag);
@@ -340,7 +345,7 @@ export default class YBRPlugin extends Plugin {
 			// Sync backlinks immediately
 			const fm = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
 			if (fm) {
-				const targets = extractTargets(fm[fieldName]);
+				const targets = extractTargets(getFrontmatterValue(fm, fieldName));
 				const sourceDisplay = this.settings.useDisplayName ? this.cache.getDisplayName(activeFile.basename) : null;
 
 				for (const targetName of targets) {
@@ -364,7 +369,7 @@ export default class YBRPlugin extends Plugin {
 						});
 						new Notice(t("notice.backlinkAdded", targetFile.basename, counterpartField, newLink));
 					} finally {
-						setTimeout(() => this.syncing.delete(targetFile.path), 500);
+						window.setTimeout(() => this.syncing.delete(targetFile.path), 500);
 					}
 				}
 			}
@@ -392,11 +397,11 @@ export default class YBRPlugin extends Plugin {
 	 */
 	private debouncedOnFileModify(file: TFile) {
 		const existing = this.debounceTimers.get(file.path);
-		if (existing) clearTimeout(existing);
+		if (existing) window.clearTimeout(existing);
 
-		const timer = setTimeout(() => {
+		const timer = window.setTimeout(() => {
 			this.debounceTimers.delete(file.path);
-			this.onFileModify(file);
+			void this.onFileModify(file);
 		}, 300);
 
 		this.debounceTimers.set(file.path, timer);
@@ -461,120 +466,118 @@ export default class YBRPlugin extends Plugin {
 	/**
 	 * Handle new file creation.
 	 */
-	private async onFileCreate(file: TFile) {
+	private onFileCreate(file: TFile): void {
 		if (!this.settings.autoSync) return;
 		if (!this.layoutReady) return; // Skip initial vault scan on startup
 
 		// Delay to let metadataCache index the new file
-		setTimeout(async () => {
-			const activePairs = this.getActivePairs();
-			const watchedFields = RelationCache.getWatchedFields(
-				activePairs
-			);
-			const fm =
-				this.app.metadataCache.getFileCache(file)?.frontmatter;
-
-			// Update cache
-			this.cache.updateFileRelations(file.path, fm, watchedFields);
-			this.cache.updateDisplayName(
-				file.basename,
-				resolveDisplayName(fm)
-			);
-
-			// Find all files that link to this new file and write backlinks
-			const newFileName = file.basename;
-			const linkingFiles = this.cache.findFilesLinkingTo(
-				file,
-				this.app.metadataCache
-			);
-
-			if (linkingFiles.length > 0) {
-				this.syncing.add(file.path);
-				try {
-					let autoTag: string | null = null;
-
-					await this.app.vault.process(file, (content) => {
-						let result = content;
-
-						for (const { filePath: srcPath, fieldName: srcField } of linkingFiles) {
-							const srcFile = this.app.vault.getAbstractFileByPath(srcPath);
-							if (!(srcFile instanceof TFile)) continue;
-							const srcFm = this.app.metadataCache.getFileCache(srcFile)?.frontmatter;
-							const srcTags: string[] = (() => {
-								if (!srcFm) return [];
-								const raw = srcFm.tags;
-								if (typeof raw === "string") return [raw];
-								if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
-								return [];
-							})();
-
-							const counterpart = RelationCache.getCounterpartField(
-								srcField, activePairs, srcTags
-							);
-							if (!counterpart) continue;
-
-							const yaml = extractYaml(result);
-							const existing = readFieldWikilinks(yaml, counterpart.counterpartField);
-							const srcBasename = srcFile.basename;
-
-							if (!hasLinkTo(existing, srcBasename)) {
-								const srcDisplay = this.settings.useDisplayName ? this.cache.getDisplayName(srcBasename) : null;
-								const newLink = buildWikilink(srcBasename, srcDisplay);
-								const updated = [...existing, newLink];
-								result = updateFieldInContent(result, counterpart.counterpartField, updated);
-
-								if (this.settings.debug) {
-									console.log(
-										`[YBR] New file ${newFileName}: added ${counterpart.counterpartField}: ${newLink} (from ${srcBasename}.${srcField})`
-									);
-								}
-							}
-
-							if (!autoTag) {
-								// Use the pair's target tag instead of the source field name
-								autoTag = counterpart.pair.fieldA === srcField
-									? counterpart.pair.tagB
-									: counterpart.pair.tagA;
-							}
-						}
-
-						if (autoTag) {
-							const split = splitFrontmatter(result);
-							if (split) {
-								const hasTagsField = split.yaml.split("\n").some(
-									(line) => line.startsWith("tags:")
-								);
-								if (!hasTagsField) {
-									result = result.replace(
-										/^(---\n)/,
-										`---\ntags:\n  - ${autoTag}\n`
-									);
-								}
-							}
-						}
-
-						return result;
-					});
-
-					const updatedFm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-					this.cache.updateFileRelations(file.path, updatedFm, watchedFields);
-					this.cache.updateDisplayName(file.basename, resolveDisplayName(updatedFm));
-
-					new Notice(t("notice.backlinksCreated", newFileName, String(linkingFiles.length)));
-				} finally {
-					setTimeout(() => this.syncing.delete(file.path), 500);
-				}
-			}
-
-			// Display name updates removed — Obsidian's native rename handles
-			// bare [[filename]] links automatically, and custom aliases like
-			// [[filename|custom]] should never be modified by the plugin.
-
-			// Re-attach property buttons for the new file
-			const activeFile = this.app.workspace.getActiveFile();
-			if (activeFile && activeFile.path === file.path) {
-				// Button re-attach no longer needed — using context menu
-			}
+		window.setTimeout(() => {
+			void this.processNewFile(file);
 		}, 800);
+	}
+
+	private async processNewFile(file: TFile) {
+		const activePairs = this.getActivePairs();
+		const watchedFields = RelationCache.getWatchedFields(
+			activePairs
+		);
+		const fm =
+			this.app.metadataCache.getFileCache(file)?.frontmatter;
+
+		// Update cache
+		this.cache.updateFileRelations(file.path, fm, watchedFields);
+		this.cache.updateDisplayName(
+			file.basename,
+			resolveDisplayName(fm)
+		);
+
+		// Find all files that link to this new file and write backlinks
+		const newFileName = file.basename;
+		const linkingFiles = this.cache.findFilesLinkingTo(
+			file,
+			this.app.metadataCache
+		);
+
+		if (linkingFiles.length > 0) {
+			this.syncing.add(file.path);
+			try {
+				let autoTag: string | null = null;
+
+				await this.app.vault.process(file, (content) => {
+					let result = content;
+
+					for (const { filePath: srcPath, fieldName: srcField } of linkingFiles) {
+						const srcFile = this.app.vault.getAbstractFileByPath(srcPath);
+						if (!(srcFile instanceof TFile)) continue;
+						const srcFm = this.app.metadataCache.getFileCache(srcFile)?.frontmatter;
+						const srcTags = getFrontmatterTags(srcFm);
+
+						const counterpart = RelationCache.getCounterpartField(
+							srcField, activePairs, srcTags
+						);
+						if (!counterpart) continue;
+
+						const yaml = extractYaml(result);
+						const existing = readFieldWikilinks(yaml, counterpart.counterpartField);
+						const srcBasename = srcFile.basename;
+
+						if (!hasLinkTo(existing, srcBasename)) {
+							const srcDisplay = this.settings.useDisplayName ? this.cache.getDisplayName(srcBasename) : null;
+							const newLink = buildWikilink(srcBasename, srcDisplay);
+							const updated = [...existing, newLink];
+							result = updateFieldInContent(result, counterpart.counterpartField, updated);
+
+							if (this.settings.debug) {
+								console.log(
+									`[YBR] New file ${newFileName}: added ${counterpart.counterpartField}: ${newLink} (from ${srcBasename}.${srcField})`
+								);
+							}
+						}
+
+						if (!autoTag) {
+							// Use the pair's target tag instead of the source field name
+							autoTag = counterpart.pair.fieldA === srcField
+								? counterpart.pair.tagB
+								: counterpart.pair.tagA;
+						}
+					}
+
+					if (autoTag) {
+						const split = splitFrontmatter(result);
+						if (split) {
+							const hasTagsField = split.yaml.split("\n").some(
+								(line) => line.startsWith("tags:")
+							);
+							if (!hasTagsField) {
+								result = result.replace(
+									/^(---\n)/,
+									`---\ntags:\n  - ${autoTag}\n`
+								);
+							}
+						}
+					}
+
+					return result;
+				});
+
+				const updatedFm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+				this.cache.updateFileRelations(file.path, updatedFm, watchedFields);
+				this.cache.updateDisplayName(file.basename, resolveDisplayName(updatedFm));
+
+				new Notice(t("notice.backlinksCreated", newFileName, String(linkingFiles.length)));
+			} finally {
+				window.setTimeout(() => this.syncing.delete(file.path), 500);
+			}
+		}
+
+		// Display name updates removed — Obsidian's native rename handles
+		// bare [[filename]] links automatically, and custom aliases like
+		// [[filename|custom]] should never be modified by the plugin.
+
+		// Re-attach property buttons for the new file
+		const activeFile = this.app.workspace.getActiveFile();
+		if (activeFile && activeFile.path === file.path) {
+			// Button re-attach no longer needed — using context menu
+		}
 	}
 }

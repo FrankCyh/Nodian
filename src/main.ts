@@ -5,11 +5,11 @@ import { YBRSettingTab } from "./settings";
 import { detectChanges, applyChanges, fullSync } from "./sync";
 import { resolveDisplayName } from "./display-name";
 import { buildWikilink, extractTargets, hasLinkTo } from "./wikilink-utils";
-import { readFieldWikilinks, splitFrontmatter, updateFieldInContent } from "./yaml-utils";
+import { readFieldWikilinks, updateFieldInContent } from "./yaml-utils";
 import { showPairSuggestModal } from "./pair-suggest-modal";
 import { t } from "./i18n";
 import MenuManager from "./menu-manager";
-import { getFrontmatterKeys, getFrontmatterTags, getFrontmatterValue, isRecord } from "./frontmatter-utils";
+import { getFrontmatterKeys, getFrontmatterValue, isRecord } from "./frontmatter-utils";
 
 function extractYaml(content: string): string {
 	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -31,14 +31,18 @@ function normalizeRelationPair(value: unknown): { pair: RelationPair; migrated: 
 
 	const fieldA = readStringSetting(value, "fieldA");
 	const fieldB = readStringSetting(value, "fieldB");
-	const tagAValue = value.tagA;
-	const tagBValue = value.tagB;
-	const tagA = typeof tagAValue === "string" ? tagAValue : fieldB;
-	const tagB = typeof tagBValue === "string" ? tagBValue : fieldA;
+	const patternAValue = value.patternA;
+	const patternBValue = value.patternB;
+	const patternA = typeof patternAValue === "string"
+		? patternAValue
+		: readStringSetting(value, "tagA");
+	const patternB = typeof patternBValue === "string"
+		? patternBValue
+		: readStringSetting(value, "tagB");
 
 	return {
-		pair: { fieldA, fieldB, tagA, tagB },
-		migrated: typeof tagAValue !== "string" || typeof tagBValue !== "string",
+		pair: { fieldA, fieldB, patternA, patternB },
+		migrated: typeof patternAValue !== "string" || typeof patternBValue !== "string" || "tagA" in value || "tagB" in value,
 	};
 }
 
@@ -276,9 +280,7 @@ export default class YBRPlugin extends Plugin {
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) return;
 
-		// Get current file's tags for highlighting active pair
 		const currentFm = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
-		const currentTags = getFrontmatterTags(currentFm);
 
 		// Get current page's field names to filter relevant pairs
 		const pageFields = getFrontmatterKeys(currentFm).filter(
@@ -291,38 +293,12 @@ export default class YBRPlugin extends Plugin {
 			fieldName,
 			activeFile.basename,
 			activePairs,
-			currentTags,
+			activeFile.path,
 			pageFields
 		);
 
 		if (result.action === "save" && result.counterpartField) {
 			const counterpartField = result.counterpartField;
-
-			// If modal returned a sourceTag (user entered tag for untagged page), write it to frontmatter
-			if (result.sourceTag) {
-				this.syncing.add(activeFile.path);
-				try {
-					await this.app.vault.process(activeFile, (content) => {
-						const split = splitFrontmatter(content);
-						if (split) {
-							const hasTagsField = split.yaml.split("\n").some(
-								(line) => line.startsWith("tags:") || line.startsWith("tags :")
-							);
-							if (!hasTagsField) {
-								return content.replace(
-									/^(---\n)/,
-									`---\ntags:\n  - ${result.sourceTag}\n`
-								);
-							}
-						}
-						return content;
-					});
-				} finally {
-					window.setTimeout(() => this.syncing.delete(activeFile.path), 500);
-				}
-				// Update currentTags for pair creation below
-				currentTags.push(result.sourceTag);
-			}
 
 			// Only add if this exact pair doesn't already exist
 			const alreadyExists = this.settings.pairs.some(
@@ -334,8 +310,8 @@ export default class YBRPlugin extends Plugin {
 				this.settings.pairs.push({
 					fieldA: fieldName,
 					fieldB: counterpartField,
-					tagA: currentTags[0] || "",
-					tagB: result.counterpartTag || counterpartField,
+					patternA: result.sourcePattern || activeFile.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+					patternB: result.counterpartPattern || "",
 				});
 				await this.saveSettings();
 			}
@@ -352,6 +328,9 @@ export default class YBRPlugin extends Plugin {
 					const targetFile = this.app.metadataCache.getFirstLinkpathDest(targetName, activeFile.path);
 					if (!targetFile) {
 						new Notice(t("notice.fileNotFound", targetName));
+						continue;
+					}
+					if (!RelationCache.pathMatchesPattern(targetFile.path, result.counterpartPattern || "")) {
 						continue;
 					}
 
@@ -501,21 +480,17 @@ export default class YBRPlugin extends Plugin {
 		if (linkingFiles.length > 0) {
 			this.syncing.add(file.path);
 			try {
-				let autoTag: string | null = null;
-
 				await this.app.vault.process(file, (content) => {
 					let result = content;
 
 					for (const { filePath: srcPath, fieldName: srcField } of linkingFiles) {
 						const srcFile = this.app.vault.getAbstractFileByPath(srcPath);
 						if (!(srcFile instanceof TFile)) continue;
-						const srcFm = this.app.metadataCache.getFileCache(srcFile)?.frontmatter;
-						const srcTags = getFrontmatterTags(srcFm);
-
 						const counterpart = RelationCache.getCounterpartField(
-							srcField, activePairs, srcTags
+							srcField, activePairs, srcPath
 						);
 						if (!counterpart) continue;
+						if (!RelationCache.pathMatchesPattern(file.path, counterpart.targetPattern)) continue;
 
 						const yaml = extractYaml(result);
 						const existing = readFieldWikilinks(yaml, counterpart.counterpartField);
@@ -534,28 +509,8 @@ export default class YBRPlugin extends Plugin {
 							}
 						}
 
-						if (!autoTag) {
-							// Use the pair's target tag instead of the source field name
-							autoTag = counterpart.pair.fieldA === srcField
-								? counterpart.pair.tagB
-								: counterpart.pair.tagA;
-						}
 					}
 
-					if (autoTag) {
-						const split = splitFrontmatter(result);
-						if (split) {
-							const hasTagsField = split.yaml.split("\n").some(
-								(line) => line.startsWith("tags:")
-							);
-							if (!hasTagsField) {
-								result = result.replace(
-									/^(---\n)/,
-									`---\ntags:\n  - ${autoTag}\n`
-								);
-							}
-						}
-					}
 
 					return result;
 				});

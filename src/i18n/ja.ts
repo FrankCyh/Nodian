@@ -44,23 +44,20 @@ export default {
 	"modal.removePair": "ペアを解除",
 	"modal.close": "閉じる",
 	"modal.addAnother": "このフィールドに別のペアを追加：",
-	"modal.pairTag": "ソースタグが「{0}」の場合",
-	"modal.pairTagAny": "任意のタグ（フォールバック）",
 	"modal.active": "適用中",
-	"modal.context": "タグ：{0} → フィールド：{1}",
-	"modal.noPairForTag": "⚠️ タグ「{0}」に対応するペアがありません。このページではこのフィールドは同期されません。下でペアを追加してください。",
+	"modal.noPairForPattern": "⚠️ 「{0}」に一致するペアパターンがありません。このページではこのフィールドは同期されません。下でペアを追加してください。",
 
 	// 設定：タグフィールド
-	"settings.tagA": "タグ A",
-	"settings.tagB": "タグ B",
+	"settings.patternA": "パス Regex A",
+	"settings.patternB": "パス Regex B",
 
 	// モーダル：タグ関連
-	"modal.counterpartTag": "ターゲットタグ",
-	"modal.counterpartTag.desc": "このペアの対象ファイルを識別するタグ",
-	"modal.counterpartTag.field": "ターゲットフィールド",
-	"modal.counterpartTag.placeholder": "タグを入力",
-	"modal.sourceTag": "このページのタグ",
-	"modal.sourceTag.required": "このページにタグがありません。ペアを作成するにはタグが必要です。",
+	"modal.counterpartPattern": "ターゲットパス Regex",
+	"modal.counterpartPattern.desc": "このペアの対象ファイルを識別するパス Regex",
+	"modal.counterpartPattern.field": "ターゲットフィールド",
+	"modal.counterpartPattern.placeholder": "パス Regex を入力",
+	"modal.sourcePattern": "このページのパス Regex",
+	"modal.sourcePattern.desc": "現在側の関係に使うパス Regex。デフォルトはこのファイルのディレクトリに一致します。",
 	"modal.existingPairs": "既存のペア",
 
 	// プロパティボタン

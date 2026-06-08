@@ -7,30 +7,20 @@ import {
 	extractTargets,
 	hasLinkTo,
 } from "./wikilink-utils";
-import { readFieldWikilinks, splitFrontmatter, updateFieldInContent } from "./yaml-utils";
-import { getFrontmatterTags, getFrontmatterValue } from "./frontmatter-utils";
-
-function extractFileTags(metadataCache: MetadataCache, file: TFile): string[] {
-	const fm = metadataCache.getFileCache(file)?.frontmatter;
-	return getFrontmatterTags(fm);
-}
+import { readFieldWikilinks, updateFieldInContent } from "./yaml-utils";
+import { getFrontmatterValue } from "./frontmatter-utils";
 
 function resolveTargetFile(
 	vault: Vault,
 	metadataCache: MetadataCache,
 	linkpath: string,
 	sourcePath: string,
-	expectedTag: string | undefined
+	expectedPattern: string | undefined
 ): TFile | null {
 	const candidate = metadataCache.getFirstLinkpathDest(linkpath, sourcePath);
 	if (!candidate) return null;
-	if (!expectedTag) return candidate;
-
-	const tags = extractFileTags(metadataCache, candidate);
-	if (tags.length === 0) return candidate;
-	if (tags.some((t) => t.toLowerCase() === expectedTag.toLowerCase())) return candidate;
-
-	return null;
+	if (!expectedPattern) return candidate;
+	return RelationCache.pathMatchesPattern(candidate.path, expectedPattern) ? candidate : null;
 }
 
 /**
@@ -46,17 +36,14 @@ export function detectChanges(
 	const changes: RelationChange[] = [];
 	const watchedFields = RelationCache.getWatchedFields(pairs);
 
-	// Extract source tags for pair disambiguation
-	const sourceTags = getFrontmatterTags(currentFrontmatter);
-
 	for (const fieldName of watchedFields) {
-		const counterpart = RelationCache.getCounterpartField(fieldName, pairs, sourceTags);
+		const counterpart = RelationCache.getCounterpartField(fieldName, pairs, filePath);
 		if (!counterpart) continue;
 
-			const oldTargets = cache.getTargets(filePath, fieldName);
-			const newTargets = currentFrontmatter
-				? extractTargets(getFrontmatterValue(currentFrontmatter, fieldName))
-				: [];
+		const oldTargets = cache.getTargets(filePath, fieldName);
+		const newTargets = currentFrontmatter
+			? extractTargets(getFrontmatterValue(currentFrontmatter, fieldName))
+			: [];
 
 		const oldSet = new Set(oldTargets);
 		const newSet = new Set(newTargets);
@@ -72,9 +59,7 @@ export function detectChanges(
 				targetFieldName: counterpart.counterpartField,
 				added,
 				removed,
-				autoTag: counterpart.pair.fieldA === fieldName
-					? counterpart.pair.tagB
-					: counterpart.pair.tagA,
+				targetPattern: counterpart.targetPattern,
 			});
 		}
 	}
@@ -85,8 +70,8 @@ export function detectChanges(
 /** Pending modification for a single field in a target file */
 interface FieldMod {
 	targetFieldName: string;
-	/** Auto-tag to add if target has no tags (= source field name = target entity type) */
-	autoTag?: string;
+	/** Regex pattern that the resolved target file path must match. */
+	targetPattern?: string;
 	addLinks: string[];
 	removeSourceNames: string[];
 }
@@ -112,10 +97,10 @@ export async function applyChanges(
 		const sourceDisplayName = useDisplayName ? cache.getDisplayName(change.sourceFileName) : null;
 
 		for (const targetFileName of change.added) {
-			const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, change.sourceFile, change.autoTag);
+			const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, change.sourceFile, change.targetPattern);
 			if (!targetFile) {
 				if (debug) {
-					console.log(`[YBR] Target file not found or tag mismatch: ${targetFileName} (expected tag: ${change.autoTag}) — skipping`);
+					console.log(`[YBR] Target file not found or pattern mismatch: ${targetFileName} (expected pattern: ${change.targetPattern}) — skipping`);
 				}
 				continue;
 			}
@@ -132,7 +117,7 @@ export async function applyChanges(
 					targetFieldName: change.targetFieldName,
 					addLinks: [],
 					removeSourceNames: [],
-					autoTag: change.autoTag, // tag from the pair's target side
+					targetPattern: change.targetPattern,
 				};
 				fileMods.set(change.targetFieldName, fieldMod);
 			}
@@ -142,7 +127,7 @@ export async function applyChanges(
 		}
 
 		for (const targetFileName of change.removed) {
-			const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, change.sourceFile, change.autoTag);
+			const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, change.sourceFile, change.targetPattern);
 			if (!targetFile) continue;
 
 			let fileMods = modsPerFile.get(targetFile.path);
@@ -225,30 +210,6 @@ export async function applyChanges(
 					);
 				}
 
-				// Auto-tag: if target has no tags, add one based on source field name
-				// e.g., Person.md's "Mail" field links here → add tag "Mail"
-				const split = splitFrontmatter(result);
-				if (split) {
-					const yamlStr = split.yaml;
-					const hasTagsField = yamlStr.split("\n").some(
-						(line) => line.startsWith("tags:") || line.startsWith("tags :")
-					);
-					if (!hasTagsField) {
-						for (const [, m] of fieldMods) {
-							if (m.autoTag) {
-								result = result.replace(
-									/^(---\n)/,
-									`---\ntags:\n  - ${m.autoTag}\n`
-								);
-								if (debug) {
-									console.log(`[YBR] Auto-tagged ${filePath} with "${m.autoTag}"`);
-								}
-								break;
-							}
-						}
-					}
-				}
-
 				return result;
 			});
 
@@ -304,25 +265,19 @@ export async function fullSync(
 		const fm = metadataCache.getFileCache(file)?.frontmatter;
 		if (!fm) continue;
 
-			const fmTags = getFrontmatterTags(fm);
-
 		for (const fieldName of watchedFields) {
-			const counterpart = RelationCache.getCounterpartField(fieldName, pairs, fmTags);
+			const counterpart = RelationCache.getCounterpartField(fieldName, pairs, file.path);
 			if (!counterpart) continue;
 
-				const targets = extractTargets(getFrontmatterValue(fm, fieldName));
+			const targets = extractTargets(getFrontmatterValue(fm, fieldName));
 			const sourceDisplayName = useDisplayName ? cache.getDisplayName(file.basename) : null;
 
-			const expectedTargetTag = counterpart.pair.fieldA === fieldName
-				? counterpart.pair.tagB
-				: counterpart.pair.tagA;
-
 			for (const targetFileName of targets) {
-					const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, file.path, expectedTargetTag);
-					if (!targetFile) continue;
+				const targetFile = resolveTargetFile(vault, metadataCache, targetFileName, file.path, counterpart.targetPattern);
+				if (!targetFile) continue;
 
-					const targetFm = metadataCache.getFileCache(targetFile)?.frontmatter;
-					const existingTargets = extractTargets(getFrontmatterValue(targetFm, counterpart.counterpartField));
+				const targetFm = metadataCache.getFileCache(targetFile)?.frontmatter;
+				const existingTargets = extractTargets(getFrontmatterValue(targetFm, counterpart.counterpartField));
 
 				if (!existingTargets.includes(file.basename)) {
 					const newLink = buildWikilink(file.basename, sourceDisplayName);

@@ -1,8 +1,8 @@
 export interface RelationPair {
 	fieldA: string;
 	fieldB: string;
-	tagA: string;
-	tagB: string;
+	patternA: string;
+	patternB: string;
 }
 
 export interface PluginSettings {
@@ -19,12 +19,23 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	debug: false,
 };
 
+export function isValidRegexPattern(pattern: string): boolean {
+	try {
+		new RegExp(pattern);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function isCompletePair(pair: RelationPair): boolean {
 	return (
 		pair.fieldA.trim().length > 0 &&
 		pair.fieldB.trim().length > 0 &&
-		pair.tagA.trim().length > 0 &&
-		pair.tagB.trim().length > 0
+		pair.patternA.trim().length > 0 &&
+		pair.patternB.trim().length > 0 &&
+		isValidRegexPattern(pair.patternA) &&
+		isValidRegexPattern(pair.patternB)
 	);
 }
 
@@ -40,5 +51,5 @@ export interface RelationChange {
 	targetFieldName: string;
 	added: string[];
 	removed: string[];
-	autoTag?: string;
+	targetPattern?: string;
 }

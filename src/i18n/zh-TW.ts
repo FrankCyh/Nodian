@@ -44,23 +44,20 @@ export default {
 	"modal.removePair": "解除配對",
 	"modal.close": "關閉",
 	"modal.addAnother": "為此欄位新增配對：",
-	"modal.pairTag": "來源 Tag 為「{0}」時",
-	"modal.pairTagAny": "任何 Tag（備選）",
 	"modal.active": "適用中",
-	"modal.context": "Tag：{0} → 欄位：{1}",
-	"modal.noPairForTag": "⚠️ Tag「{0}」沒有對應的配對，此頁面的這個欄位不會同步。請在下方新增配對。",
+	"modal.noPairForPattern": "⚠️ 沒有符合「{0}」的配對路徑 Regex，此頁面的這個欄位不會同步。請在下方新增配對。",
 
 	// 設定：標籤欄位
-	"settings.tagA": "Tag A",
-	"settings.tagB": "Tag B",
+	"settings.patternA": "Pattern A",
+	"settings.patternB": "Pattern B",
 
 	// 彈窗：標籤相關
-	"modal.counterpartTag": "目標 Tag",
-	"modal.counterpartTag.desc": "用來識別此配對目標頁面的 Tag",
-	"modal.counterpartTag.field": "目標欄位",
-	"modal.counterpartTag.placeholder": "輸入 Tag",
-	"modal.sourceTag": "此頁面的 Tag",
-	"modal.sourceTag.required": "此頁面沒有 Tag，需要設定 Tag 才能建立配對。",
+	"modal.counterpartPattern": "目標路徑 Regex",
+	"modal.counterpartPattern.desc": "用來識別此配對目標頁面的路徑 Regex",
+	"modal.counterpartPattern.field": "目標欄位",
+	"modal.counterpartPattern.placeholder": "輸入路徑 Regex",
+	"modal.sourcePattern": "此頁面的路徑 Regex",
+	"modal.sourcePattern.desc": "目前關聯端的路徑 Regex。預設會符合此檔案所在資料夾。",
 	"modal.existingPairs": "已設定的配對",
 
 	// 屬性按鈕

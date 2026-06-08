@@ -2,13 +2,13 @@ import { App, Modal, Setting } from "obsidian";
 import { RelationPair } from "./types";
 import { RelationCache } from "./cache";
 import { t } from "./i18n";
-import { getFrontmatterKeys, getFrontmatterTags } from "./frontmatter-utils";
+import { getFrontmatterKeys } from "./frontmatter-utils";
 
 export interface PairSuggestResult {
 	action: "save" | "ignore" | "remove";
 	counterpartField?: string;
-	counterpartTag?: string;
-	sourceTag?: string;
+	sourcePattern?: string;
+	counterpartPattern?: string;
 }
 
 const SYSTEM_FIELDS = new Set([
@@ -43,26 +43,24 @@ function collectExistingFields(app: App, excludeField: string): string[] {
 	return Array.from(fieldSet).sort();
 }
 
-function collectExistingTags(app: App): string[] {
-	const tagSet = new Set<string>();
-	const files = app.vault.getMarkdownFiles();
-	for (const file of files) {
-		const fm = app.metadataCache.getFileCache(file)?.frontmatter;
-		for (const tag of getFrontmatterTags(fm)) {
-			tagSet.add(tag);
-		}
-	}
-	return Array.from(tagSet).sort();
+function escapeRegexLiteral(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function defaultDirectoryPattern(filePath: string): string {
+	const lastSlash = filePath.lastIndexOf("/");
+	if (lastSlash === -1) return ".*\\.md";
+	return `${escapeRegexLiteral(filePath.slice(0, lastSlash + 1))}.*\\.md`;
 }
 
 export class PairSuggestModal extends Modal {
 	private fieldName: string;
 	private existingPairs: RelationPair[];
-	private sourceTags: string[];
+	private sourcePath: string;
 	private resolve: (result: PairSuggestResult) => void;
 	private counterpartValue: string;
-	private counterpartTagValue: string;
-	private sourceTagValue: string;
+	private sourcePatternValue: string;
+	private counterpartPatternValue: string;
 	private cleanupFns: Array<() => void> = [];
 
 	constructor(
@@ -70,18 +68,18 @@ export class PairSuggestModal extends Modal {
 		fieldName: string,
 		_fileName: string,
 		existingPairs: RelationPair[],
-		sourceTags: string[],
+		sourcePath: string,
 		_pageFields: string[],
 		resolve: (result: PairSuggestResult) => void
 	) {
 		super(app);
 		this.fieldName = fieldName;
 		this.existingPairs = existingPairs;
-		this.sourceTags = sourceTags;
+		this.sourcePath = sourcePath;
 		this.resolve = resolve;
 		this.counterpartValue = fieldName;
-		this.counterpartTagValue = "";
-		this.sourceTagValue = sourceTags[0] || "";
+		this.sourcePatternValue = defaultDirectoryPattern(sourcePath);
+		this.counterpartPatternValue = "";
 	}
 
 	onOpen() {
@@ -96,7 +94,7 @@ export class PairSuggestModal extends Modal {
 		const activeResult = RelationCache.getCounterpartField(
 			this.fieldName,
 			this.existingPairs,
-			this.sourceTags
+			this.sourcePath
 		);
 		const activePair = activeResult?.pair ?? null;
 
@@ -111,7 +109,7 @@ export class PairSuggestModal extends Modal {
 				const row = contentEl.createDiv({ cls: "ybr-pair-row" + (isActive ? " is-active" : "") });
 				const left = row.createDiv({ cls: "ybr-pair-content" });
 
-				left.createEl("span", { cls: "ybr-tag-badge", text: pair.tagA || "—" });
+				left.createEl("span", { cls: "ybr-tag-badge", text: pair.patternA || "—" });
 				left.createEl("span", {
 					cls: "ybr-field-name" + (isActive && pair.fieldA === this.fieldName ? " is-active" : ""),
 					text: ` ${pair.fieldA} `,
@@ -121,7 +119,7 @@ export class PairSuggestModal extends Modal {
 					cls: "ybr-field-name" + (isActive && pair.fieldB === this.fieldName ? " is-active" : ""),
 					text: ` ${pair.fieldB} `,
 				});
-				left.createEl("span", { cls: "ybr-tag-badge", text: pair.tagB || "—" });
+				left.createEl("span", { cls: "ybr-tag-badge", text: pair.patternB || "—" });
 
 				if (isActive) {
 					left.createEl("span", { cls: "ybr-active-badge", text: t("modal.active") });
@@ -136,9 +134,9 @@ export class PairSuggestModal extends Modal {
 			}
 		}
 
-		if (!activePair && this.sourceTags.length > 0) {
+		if (!activePair) {
 			contentEl.createEl("p", {
-				text: t("modal.noPairForTag", this.sourceTags.join(", ")),
+				text: t("modal.noPairForPattern", this.sourcePath),
 				cls: "ybr-modal-warning",
 			});
 		}
@@ -154,14 +152,10 @@ export class PairSuggestModal extends Modal {
 
 	private renderAddForm(contentEl: HTMLElement) {
 		const existingFields = collectExistingFields(this.app, this.fieldName);
-		const existingTags = collectExistingTags(this.app);
-		const currentTag = this.sourceTags[0] || "";
 		const addRow = contentEl.createDiv({ cls: "ybr-add-row" });
 		const leftSide = addRow.createDiv({ cls: "ybr-add-left" });
 
-		if (currentTag) {
-			leftSide.createEl("span", { cls: "ybr-tag-badge ybr-active-tag", text: currentTag });
-		}
+		leftSide.createEl("span", { cls: "ybr-tag-badge ybr-active-tag", text: this.sourcePatternValue });
 		leftSide.createEl("span", {
 			cls: "ybr-field-name is-active",
 			text: ` ${this.fieldName} `,
@@ -170,46 +164,39 @@ export class PairSuggestModal extends Modal {
 
 		const rightSide = addRow.createDiv({ cls: "ybr-add-right" });
 		const fieldCol = rightSide.createDiv({ cls: "ybr-add-col" });
-		this.createCombo(fieldCol, existingFields, t("modal.counterpartTag.field"), (value) => {
+		this.createCombo(fieldCol, existingFields, t("modal.counterpartPattern.field"), (value) => {
 			this.counterpartValue = value;
 		});
-		fieldCol.createEl("span", { cls: "ybr-select-label", text: t("modal.counterpartTag.field") });
+		fieldCol.createEl("span", { cls: "ybr-select-label", text: t("modal.counterpartPattern.field") });
 
-		const tagCol = rightSide.createDiv({ cls: "ybr-add-col" });
-		this.createCombo(tagCol, existingTags, t("modal.counterpartTag"), (value) => {
-			this.counterpartTagValue = value;
+		const patternCol = rightSide.createDiv({ cls: "ybr-add-col" });
+		this.createCombo(patternCol, [], "task/.*\\.md", (value) => {
+			this.counterpartPatternValue = value;
 		});
-		tagCol.createEl("span", { cls: "ybr-select-label", text: t("modal.counterpartTag") });
+		patternCol.createEl("span", { cls: "ybr-select-label", text: t("modal.counterpartPattern") });
 
-		if (this.sourceTags.length === 0) {
-			contentEl.createEl("hr");
-			contentEl.createEl("p", {
-				text: t("modal.sourceTag.required"),
-				cls: "ybr-modal-warning",
-			});
-			const sourceTagRow = contentEl.createDiv({ cls: "ybr-add-row" });
-			sourceTagRow.createEl("span", {
-				cls: "ybr-add-label",
-				text: t("modal.sourceTag"),
-			});
-			const sourceCol = sourceTagRow.createDiv({ cls: "ybr-add-col" });
-			this.createCombo(sourceCol, existingTags, t("modal.counterpartTag.placeholder"), (value) => {
-				this.sourceTagValue = value;
-			});
-		}
+		contentEl.createEl("hr");
+		contentEl.createEl("p", {
+			text: t("modal.sourcePattern.desc"),
+			cls: "ybr-modal-section-label",
+		});
+		const sourceCol = contentEl.createDiv({ cls: "ybr-add-col" });
+		this.createCombo(sourceCol, [], this.sourcePatternValue, (value) => {
+			this.sourcePatternValue = value;
+		});
 
 		contentEl.createEl("hr");
 		const btnRow = contentEl.createDiv({ cls: "ybr-btn-row" });
 		const saveBtn = btnRow.createEl("button", { cls: "mod-cta", text: t("modal.save") });
 		saveBtn.addEventListener("click", () => {
 			if (!this.counterpartValue) return;
-			if (!this.counterpartTagValue) return;
-			if (this.sourceTags.length === 0 && !this.sourceTagValue) return;
+			if (!this.sourcePatternValue) return;
+			if (!this.counterpartPatternValue) return;
 			this.resolve({
 				action: "save",
 				counterpartField: this.counterpartValue,
-				counterpartTag: this.counterpartTagValue,
-				sourceTag: this.sourceTagValue || undefined,
+				sourcePattern: this.sourcePatternValue,
+				counterpartPattern: this.counterpartPatternValue,
 			});
 			this.close();
 		});
@@ -314,7 +301,7 @@ export function showPairSuggestModal(
 	fieldName: string,
 	fileName: string,
 	existingPairs: RelationPair[],
-	sourceTags: string[] = [],
+	sourcePath = "",
 	pageFields: string[] = []
 ): Promise<PairSuggestResult> {
 	return new Promise((resolve) => {
@@ -325,6 +312,6 @@ export function showPairSuggestModal(
 				resolve(result);
 			}
 		};
-		new PairSuggestModal(app, fieldName, fileName, existingPairs, sourceTags, pageFields, wrappedResolve).open();
+		new PairSuggestModal(app, fieldName, fileName, existingPairs, sourcePath, pageFields, wrappedResolve).open();
 	});
 }

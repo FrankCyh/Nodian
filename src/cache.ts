@@ -188,47 +188,37 @@ export class RelationCache {
 	/**
 	 * Find the counterpart field for a given field name.
 	 *
-	 * When a field appears in multiple pairs, uses source file's tags
-	 * to determine which pair to use:
-	 *   - pair (fieldA, fieldB): applies when source tag = fieldB and source field = fieldA
-	 *   - pair (fieldA, fieldB): applies when source tag = fieldA and source field = fieldB
-	 *
-	 * Example: Person.md (tag: Person) has Mail field
-	 *   - Pair Mail↔Person: field=Mail=fieldA, tag=Person=fieldB → MATCH → counterpart=Person
-	 *   - Pair Mail↔Domain: field=Mail=fieldA, tag=Person≠fieldB(Domain) → skip
+	 * Relation pairs are scoped by regex patterns that match vault-relative
+	 * markdown file paths. For example, a pair can connect
+	 * `project/.*\\.md` + `task` to `task/.*\\.md` + `project`.
 	 */
 	static getCounterpartField(
 		fieldName: string,
 		pairs: RelationPair[],
-		sourceTags?: string[]
-	): { counterpartField: string; pair: RelationPair } | null {
+		sourcePath: string
+	): { counterpartField: string; pair: RelationPair; targetPattern: string } | null {
 		const fieldLower = fieldName.toLowerCase();
-		const matches: Array<{ counterpartField: string; pair: RelationPair; matchedSide: "A" | "B" }> = [];
 		for (const pair of pairs) {
-			if (pair.fieldA.toLowerCase() === fieldLower) {
-				matches.push({ counterpartField: pair.fieldB, pair, matchedSide: "A" });
-			} else if (pair.fieldB.toLowerCase() === fieldLower) {
-				matches.push({ counterpartField: pair.fieldA, pair, matchedSide: "B" });
+			if (pair.fieldA.toLowerCase() === fieldLower && RelationCache.pathMatchesPattern(sourcePath, pair.patternA)) {
+				return { counterpartField: pair.fieldB, pair, targetPattern: pair.patternB };
+			}
+			if (pair.fieldB.toLowerCase() === fieldLower && RelationCache.pathMatchesPattern(sourcePath, pair.patternB)) {
+				return { counterpartField: pair.fieldA, pair, targetPattern: pair.patternA };
 			}
 		}
 
-		if (matches.length === 0) return null;
-
-		// If source has tags, find pair with matching tag
-		if (sourceTags && sourceTags.length > 0) {
-			const tagsLower = new Set(sourceTags.map((t) => t.toLowerCase()));
-			for (const match of matches) {
-				const relevantTag = match.matchedSide === "A"
-					? match.pair.tagA
-					: match.pair.tagB;
-				if (relevantTag && tagsLower.has(relevantTag.toLowerCase())) {
-					return { counterpartField: match.counterpartField, pair: match.pair };
-				}
-			}
-		}
-
-		// No tag match — do not sync
 		return null;
+	}
+
+	/**
+	 * Test whether a vault-relative markdown file path matches a configured regex.
+	 */
+	static pathMatchesPattern(filePath: string, pattern: string): boolean {
+		try {
+			return new RegExp(pattern).test(filePath);
+		} catch {
+			return false;
+		}
 	}
 
 	/**

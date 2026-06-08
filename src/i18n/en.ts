@@ -44,23 +44,20 @@ export default {
 	"modal.removePair": "Remove Pair",
 	"modal.close": "Close",
 	"modal.addAnother": "Add another pair for this field:",
-	"modal.pairTag": "When source tag is \"{0}\"",
-	"modal.pairTagAny": "Any tag (fallback)",
 	"modal.active": "Active",
-	"modal.context": "Tag: {0} → Field: {1}",
-	"modal.noPairForTag": "⚠️ No pair configured for tag \"{0}\". Sync is inactive for this field on this page. Add a pair below.",
+	"modal.noPairForPattern": "⚠️ No pair pattern matches \"{0}\". Sync is inactive for this field on this page. Add a pair below.",
 
-	// Settings: tag fields
-	"settings.tagA": "Tag A",
-	"settings.tagB": "Tag B",
+	// Settings: path pattern fields
+	"settings.patternA": "Pattern A",
+	"settings.patternB": "Pattern B",
 
-	// Modal: tag-related
-	"modal.counterpartTag": "Target tag",
-	"modal.counterpartTag.desc": "The tag that identifies target files for this pair",
-	"modal.counterpartTag.field": "Target field",
-	"modal.counterpartTag.placeholder": "Enter tag",
-	"modal.sourceTag": "Tag for this page",
-	"modal.sourceTag.required": "This page has no tag. A tag is required to create a pair.",
+	// Modal: path pattern-related
+	"modal.counterpartPattern": "Target path regex",
+	"modal.counterpartPattern.desc": "Regex that identifies target files for this pair",
+	"modal.counterpartPattern.field": "Target field",
+	"modal.counterpartPattern.placeholder": "Enter path regex",
+	"modal.sourcePattern": "Path regex for this page",
+	"modal.sourcePattern.desc": "Regex for the current side of the relation. The default matches this file's directory.",
 	"modal.existingPairs": "Existing pairs",
 
 	// Property buttons

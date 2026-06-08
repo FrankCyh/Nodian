@@ -1,8 +1,9 @@
 import { App, ButtonComponent, Notice, PluginSettingTab, Setting } from "obsidian";
 import type YBRPlugin from "./main";
+import { isValidRegexPattern } from "./types";
 import { fullSync } from "./sync";
 import { t } from "./i18n";
-import { getFrontmatterKeys, getFrontmatterTags } from "./frontmatter-utils";
+import { getFrontmatterKeys } from "./frontmatter-utils";
 
 const SYSTEM_FIELDS = new Set([
 	"title",
@@ -21,18 +22,6 @@ const SYSTEM_FIELDS = new Set([
 	"modified",
 	"position",
 ]);
-
-function collectExistingTags(app: App): string[] {
-	const tagSet = new Set<string>();
-	const files = app.vault.getMarkdownFiles();
-	for (const file of files) {
-		const fm = app.metadataCache.getFileCache(file)?.frontmatter;
-		for (const tag of getFrontmatterTags(fm)) {
-			tagSet.add(tag);
-		}
-	}
-	return Array.from(tagSet).sort();
-}
 
 function collectExistingFields(app: App): string[] {
 	const fieldSet = new Set<string>();
@@ -101,15 +90,8 @@ export class YBRSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl).setName(t("settings.relationPairs")).setHeading();
 
-		const tags = collectExistingTags(this.app);
 		const fields = collectExistingFields(this.app);
-		const tagListId = "ybr-datalist-tags";
 		const fieldListId = "ybr-datalist-fields";
-
-		const tagList = containerEl.createEl("datalist", { attr: { id: tagListId } });
-		for (const tag of tags) {
-			tagList.createEl("option", { attr: { value: tag } });
-		}
 
 		const fieldList = containerEl.createEl("datalist", { attr: { id: fieldListId } });
 		for (const field of fields) {
@@ -117,11 +99,11 @@ export class YBRSettingTab extends PluginSettingTab {
 		}
 
 		const headerRow = containerEl.createDiv({ cls: "ybr-settings-pair-row ybr-settings-header" });
-		headerRow.createEl("span", { cls: "ybr-settings-header-tag", text: "Tag" });
+		headerRow.createEl("span", { cls: "ybr-settings-header-tag", text: t("settings.patternA") });
 		headerRow.createEl("span", { cls: "ybr-settings-header-field", text: "Field" });
 		headerRow.createEl("span", { cls: "ybr-settings-arrow", text: "" });
 		headerRow.createEl("span", { cls: "ybr-settings-header-field", text: "Field" });
-		headerRow.createEl("span", { cls: "ybr-settings-header-tag", text: "Tag" });
+		headerRow.createEl("span", { cls: "ybr-settings-header-tag", text: t("settings.patternB") });
 		headerRow.createEl("span", { cls: "ybr-settings-header-delete", text: "" });
 
 		const pairsContainer = containerEl.createDiv();
@@ -131,14 +113,14 @@ export class YBRSettingTab extends PluginSettingTab {
 			this.plugin.settings.pairs.forEach((pair, index) => {
 				const row = pairsContainer.createDiv({ cls: "ybr-settings-pair-row" });
 
-				const tagAInput = row.createEl("input", {
+				const patternAInput = row.createEl("input", {
 					cls: "ybr-settings-input ybr-settings-tag",
-					attr: { type: "text", placeholder: "Tag", value: pair.tagA || "", list: tagListId },
+					attr: { type: "text", placeholder: "project/.*\\.md", value: pair.patternA || "" },
 				});
-				tagAInput.classList.toggle("is-invalid", !pair.tagA);
-				tagAInput.addEventListener("change", () => {
-					this.plugin.settings.pairs[index].tagA = tagAInput.value.trim();
-					tagAInput.classList.toggle("is-invalid", !tagAInput.value.trim());
+				patternAInput.classList.toggle("is-invalid", !isValidRegexPattern(pair.patternA || ""));
+				patternAInput.addEventListener("change", () => {
+					this.plugin.settings.pairs[index].patternA = patternAInput.value.trim();
+					patternAInput.classList.toggle("is-invalid", !isValidRegexPattern(patternAInput.value.trim()));
 					void this.saveSettingsAndRebuild();
 				});
 
@@ -162,14 +144,14 @@ export class YBRSettingTab extends PluginSettingTab {
 					void this.saveSettingsAndRebuild();
 				});
 
-				const tagBInput = row.createEl("input", {
+				const patternBInput = row.createEl("input", {
 					cls: "ybr-settings-input ybr-settings-tag",
-					attr: { type: "text", placeholder: "Tag", value: pair.tagB || "", list: tagListId },
+					attr: { type: "text", placeholder: "task/.*\\.md", value: pair.patternB || "" },
 				});
-				tagBInput.classList.toggle("is-invalid", !pair.tagB);
-				tagBInput.addEventListener("change", () => {
-					this.plugin.settings.pairs[index].tagB = tagBInput.value.trim();
-					tagBInput.classList.toggle("is-invalid", !tagBInput.value.trim());
+				patternBInput.classList.toggle("is-invalid", !isValidRegexPattern(pair.patternB || ""));
+				patternBInput.addEventListener("change", () => {
+					this.plugin.settings.pairs[index].patternB = patternBInput.value.trim();
+					patternBInput.classList.toggle("is-invalid", !isValidRegexPattern(patternBInput.value.trim()));
 					void this.saveSettingsAndRebuild();
 				});
 
@@ -184,7 +166,7 @@ export class YBRSettingTab extends PluginSettingTab {
 			const addRow = pairsContainer.createDiv({ cls: "ybr-settings-add-row" });
 			const addBtn = addRow.createEl("button", { cls: "mod-cta", text: t("settings.addPair") });
 			addBtn.addEventListener("click", () => {
-				this.plugin.settings.pairs.push({ fieldA: "", fieldB: "", tagA: "", tagB: "" });
+				this.plugin.settings.pairs.push({ fieldA: "", fieldB: "", patternA: "", patternB: "" });
 				void this.saveSettings(renderPairs);
 			});
 		};
